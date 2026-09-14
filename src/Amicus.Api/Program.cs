@@ -51,6 +51,20 @@ app.MapEvents();
 app.MapBookings();
 app.MapAdmin();
 
+// A friendly root so hitting the base URL in a browser shows the API is alive
+// instead of a bare 404 — it is an API with no page, and a 404 there reads as
+// "nothing is running". Names the health and OpenAPI paths for a human poking at it.
+app.MapGet("/", () => Results.Ok(new
+{
+    service = "amicus-api",
+    status = "ok",
+    docs = "/openapi/v1.json",
+    health = "/health",
+}))
+    .WithName("Root")
+    .AllowAnonymous()
+    .DisableRateLimiting();
+
 // Deliberately exempt: an uptime monitor polling every few seconds must not be
 // throttled, and it exposes nothing.
 app.MapHealthChecks("/health").DisableRateLimiting();

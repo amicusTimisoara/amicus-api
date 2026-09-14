@@ -421,6 +421,20 @@ public sealed class BookingFlowTests(AmicusFixture fixture) : IAsyncLifetime
     }
 
     [Fact]
+    public async Task The_root_url_answers_anonymously_so_a_browser_sees_the_api_is_up()
+    {
+        // Hitting the base URL in a browser must not read as "nothing is running".
+        var anonymous = _app.CreateClient();
+
+        var response = await anonymous.GetAsync("/");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.Contains("amicus-api", body);
+        Assert.Contains("/health", body);
+    }
+
+    [Fact]
     public async Task Anonymous_callers_are_turned_away()
     {
         var anonymous = _app.CreateClient();
