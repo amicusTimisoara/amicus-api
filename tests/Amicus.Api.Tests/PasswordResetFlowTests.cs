@@ -18,7 +18,7 @@ public sealed class PasswordResetFlowTests(AmicusFixture fixture) : IAsyncLifeti
     public Task DisposeAsync() => Task.CompletedTask;
 
     [Fact]
-    public async Task Registering_confirms_the_email_and_sends_no_confirmation_mail()
+    public async Task Registering_auto_confirms_and_sends_a_verify_email()
     {
         var client = _app.CreateClient();
 
@@ -32,10 +32,9 @@ public sealed class PasswordResetFlowTests(AmicusFixture fixture) : IAsyncLifeti
         var user = await users.FindByEmailAsync("new@amicus.test");
 
         Assert.NotNull(user);
+        // Login works immediately (auto-confirmed), AND a friendly verify email goes out.
         Assert.True(user!.EmailConfirmed, "a password registration must be auto-confirmed");
-
-        // and nothing was emailed on registration — no confirmation is required
-        Assert.Empty(_app.Email.Sent);
+        Assert.Contains(_app.Email.Sent, e => e.Kind == "confirmation" && e.To == "new@amicus.test");
     }
 
     [Fact]
@@ -47,15 +46,15 @@ public sealed class PasswordResetFlowTests(AmicusFixture fixture) : IAsyncLifeti
             email = "forgot@amicus.test", password = "correct-horse-battery",
         })).EnsureSuccessStatusCode();
 
+        _app.Email.Sent.Clear(); // drop the registration's verify email
         var response = await client.PostAsJsonAsync("/auth/forgotPassword",
             new { email = "forgot@amicus.test" });
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         // The whole point of the auto-confirm fix: the reset is genuinely sent,
         // not silently swallowed because the email was unconfirmed.
-        var reset = Assert.Single(_app.Email.Sent);
+        var reset = Assert.Single(_app.Email.Sent, e => e.Subject == "reset");
         Assert.Equal("forgot@amicus.test", reset.To);
-        Assert.Equal("reset", reset.Subject);
         Assert.False(string.IsNullOrWhiteSpace(reset.Payload));
     }
 
@@ -68,8 +67,9 @@ public sealed class PasswordResetFlowTests(AmicusFixture fixture) : IAsyncLifeti
             email = "cycle@amicus.test", password = "correct-horse-battery",
         })).EnsureSuccessStatusCode();
 
+        _app.Email.Sent.Clear(); // drop the registration's verify email
         await client.PostAsJsonAsync("/auth/forgotPassword", new { email = "cycle@amicus.test" });
-        var code = Assert.Single(_app.Email.Sent).Payload;
+        var code = Assert.Single(_app.Email.Sent, e => e.Subject == "reset").Payload;
 
         // Identity base64url-encodes the code before it reaches the email sender,
         // so the reset endpoint receives it exactly as delivered.

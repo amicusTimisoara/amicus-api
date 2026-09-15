@@ -33,6 +33,8 @@ builder.Services
 // it they succeed but send nothing.
 builder.Services.AddScoped<IEmailSender<AppUser>, SmtpEmailSender>();
 
+builder.Services.AddAmicusCors(builder.Configuration);
+
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
@@ -44,6 +46,8 @@ if (app.Environment.IsDevelopment())
 // rather than nginx's loopback — otherwise every request shares one bucket.
 app.UseForwardedHeaders();
 app.UseForwardedPrefix();
+
+app.UseCors(CorsSetup.PolicyName);
 
 app.UseRateLimiter();
 
