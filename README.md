@@ -3,7 +3,8 @@
 Backend API for AMiCUS Timișoara, shared by the mobile and web clients.
 
 - **Stack:** .NET 10 (ASP.NET Core) · PostgreSQL 18 · EF Core 10 (Npgsql)
-- **Clients:** `amicus-web` (React) and `amicus-mobile` (React Native) — not created yet
+- **Clients:** [`amicus-web`](https://github.com/amicusTimisoara/amicus-web) (React, live at `app.thorsp.net`) and `amicus-mobile` (React Native — not created yet)
+- **Live:** `api.thorsp.net` (prod) · `stage.thorsp.net` (stage)
 
 ## The domain, in one paragraph
 
@@ -119,6 +120,49 @@ Passwords require 10 characters but no symbol classes: students type these on a
 phone, and length carries far more real strength than rules that mostly produce
 `Pa$$w0rd`.
 
+### Password reset + email confirmation
+
+Registering an `IEmailSender<AppUser>` (`SmtpEmailSender`, MailKit) is what makes
+Identity's `/auth/forgotPassword` + `/auth/resetPassword` actually deliver —
+without one they succeed silently and send nothing. Configure SMTP under `Email:*`
+(Gmail SMTP is plenty for this volume). When it is unconfigured the sender logs and
+no-ops, because `/forgotPassword` always answers 200 so it can't be used to probe
+which emails exist.
+
+Registration **auto-confirms** the email (`AutoConfirmUserManager`) so login works
+immediately *and* password reset works — Identity only mails a reset to a confirmed
+address, and confirmation is not required to sign in. A friendly "verify your
+address" email still goes out with a link; clicking it is an idempotent nicety.
+
+Reset and confirmation emails carry **links to the web client** (`Email:WebResetUrl`
+→ `/reset`, `Email:WebConfirmUrl` → `/confirm`) when those are set; otherwise a bare
+code. `POST /admin/users/reset-password` (Admin) sets a password directly — the
+human fallback when email is unavailable.
+
+```jsonc
+"Email": {
+  "Host": "smtp.gmail.com", "Port": 587,
+  "User": "…@gmail.com", "Password": "<app password>",
+  "From": "…@gmail.com", "FromName": "AMiCUS Timișoara",
+  "WebResetUrl": "https://app.thorsp.net/reset",
+  "WebConfirmUrl": "https://app.thorsp.net/confirm"
+}
+```
+
+### CORS
+
+The web app and the API are different origins (`app.thorsp.net` → `api.thorsp.net`),
+so the browser needs CORS. `Cors:Origins` is an exact-origin allowlist and
+`Cors:OriginSuffixes` matches origin suffixes (for the `*.amicus-web.pages.dev` PR
+previews). Bearer tokens, not cookies, so no credentials mode.
+
+```jsonc
+"Cors": {
+  "Origins": ["https://app.thorsp.net", "http://localhost:5173"],
+  "OriginSuffixes": [".amicus-web.pages.dev"]
+}
+```
+
 ### Google sign-in
 
 **Client-side ID-token flow, not a server redirect.** The web SPA and both mobile
@@ -144,6 +188,10 @@ somebody else's account. A verified address that already has a password account
 gets **linked** rather than duplicated, so signing in with Google later does not
 lock a student out of the account they registered.
 
+The web button is live on `app.thorsp.net`. ⚠ The OAuth **consent screen is in
+Testing mode**, so only test users listed on it can complete Google sign-in until
+the app is published; everyone else uses email + password.
+
 ### Becoming an admin
 
 No default credentials ship anywhere. Register normally, add the address to
@@ -154,38 +202,43 @@ No default credentials ship anywhere. Register normally, add the address to
 | | |
 |---|---|
 | `POST /auth/register` · `login` · `refresh` · `manage/info` | email + password |
+| `POST /auth/forgotPassword` · `resetPassword` · `confirmEmail` | password reset + email confirm |
 | `POST /auth/google` | exchange a Google ID token for ours |
-| `GET /events` · `GET /events/{slug}` | published events and their specialists |
-| `GET /events/{slug}/board` | the shared board — free/taken and when, never who |
+| `GET /events` · `GET /events/{slug}` | published events and their specialists (incl. each specialist's `category`) |
+| `GET /events/{slug}/board?from=&to=` | the shared board — free/taken and when, never who |
 | `POST /bookings` · `GET /bookings/mine` · `POST /bookings/{id}/cancel` | a student's own bookings |
 | `POST /check-in` | scan a QR code (Specialist or Admin only) |
-| `POST /admin/...` | events, specialists, rosters, patterns, slot generation, publish |
+| `GET /admin/events` · `specialists` · `events/{id}/specialists` · `events/{id}/slots` | admin reads (incl. drafts) |
+| `POST /admin/...` | create events/specialists, rosters, patterns, generate-slots, publish/unpublish, slot block/unblock |
+| `PATCH /admin/specialists/{id}` | edit a specialist (incl. its `category`) |
+| `POST /admin/users/reset-password` | admin sets a student's password (fallback) |
 
 `POST /admin/events/{id}/generate-slots` is safe to re-run: existing slots are
 left alone, and a slot no longer produced by any pattern is removed **only** if
 nobody ever booked it.
 
+Each `Specialist` has a first-class **`category`** (`social`, `spiritual`,
+`mentorat`, `medical`, `juridic`, `cariera`; default `social`) so the clients group
+and colour them without guessing from the free-text specialty.
+
 ## Running on the Raspberry Pi
 
-Deployed 2026-08-31. nginx terminates TLS and proxies a sub-path to a systemd
-service; Postgres is the same container as dev, with its own database and role.
+nginx terminates TLS and proxies each environment's **subdomain** to a systemd
+service; Postgres is the same container as dev, each env with its own database and
+role. (The legacy `thorsp.net/amicus/` path still works for backward compat.)
 
-| | |
-|---|---|
-| Public URL | `https://thorsp.ddns.net/amicus/` |
-| Service | `amicus-api.service` (systemd), listening on `127.0.0.1:5090` |
-| Published app | `~/apps/amicus-api/` |
-| Settings + secrets | `~/.config/amicus/api.env`, mode 600 |
-| Database | `amicus_prod`, role `amicus_app`, same container as dev |
-| nginx | `location /amicus/` in `sites-available/verse-mate` |
+| | prod | stage |
+|---|---|---|
+| Public URL | `https://api.thorsp.net` | `https://stage.thorsp.net` |
+| Service | `amicus-api.service` :5090 | `amicus-api-stage.service` :5091 |
+| Published app | `~/apps/amicus-api/` | `~/apps/amicus-api-stage/` |
+| Settings + secrets | `~/.config/amicus/api.env` | `~/.config/amicus/api-stage.env` |
+| Database | `amicus_prod` / `amicus_app` | `amicus_stage` / `amicus_stage` |
+| nginx | `sites-available/amicus-subdomains` (server blocks per host) | |
 
-```bash
-dotnet publish src/Amicus.Api -c Release -o ~/apps/amicus-api
-set -a; . ~/.config/amicus/api.env; set +a          # note: the file is quoted, see below
-ASPNETCORE_ENVIRONMENT=Production dotnet dotnet-ef database update \
-  -p src/Amicus.Infrastructure -s src/Amicus.Api
-sudo systemctl restart amicus-api
-```
+Deploys run through `scripts/deploy.sh <stage|prod>` (below) — you rarely run the
+raw commands, but they are: `dotnet publish … -o <appdir>`, source the env file
+(`set -a; . …; set +a`), `dotnet ef database update`, `sudo systemctl restart …`.
 
 Things that will bite whoever touches this next:
 
@@ -194,11 +247,12 @@ Things that will bite whoever touches this next:
   `. api.env` in a shell takes `Host=localhost` as the value and each following
   `Port=`/`Database=`/`Password=` as a *separate assignment* — leaving a truncated
   string that silently falls back to port 5432.
-- **nginx strips `/amicus` and passes it as `X-Forwarded-Prefix`**, which the app
-  applies as `PathBase`. `Results.Created` with a literal path ignores PathBase, so
-  location headers go through `CreatedAt.Path`. The app does **not** strip a prefix
-  left on the path — `WebApplication` inserts `UseRouting` before user middleware,
-  so rewriting the path there is too late to affect routing.
+- **The subdomains are root-served** (`api.thorsp.net/…`), so there's no path
+  prefix to handle — `Location` headers are correct as-is. The legacy `/amicus/`
+  path still strips its prefix and passes `X-Forwarded-Prefix`, which the app
+  applies as `PathBase`; `Results.Created` with a literal path ignores PathBase, so
+  those go through `CreatedAt.Path`. The app does **not** strip a prefix left on the
+  path — `WebApplication` inserts `UseRouting` before user middleware.
 - **Data Protection keys persist to `~/.config/amicus/dp-keys`.** Without a
   configured path they live in memory and every restart invalidates every issued
   token, signing out every student for no visible reason. Verified: a token issued
@@ -244,8 +298,8 @@ Two environments, both on the Pi, deployed by a self-hosted GitHub Actions runne
 
 | env | trigger | service | port | database | URL |
 |---|---|---|---|---|---|
-| **stage** | push to `main`, or manual | `amicus-api-stage` | 5091 | `amicus_stage` | `thorsp.net/amicus-stage/` |
-| **prod** | a published GitHub **Release**, or manual | `amicus-api` | 5090 | `amicus_prod` | `thorsp.net/amicus/` |
+| **stage** | push to `main`, or manual | `amicus-api-stage` | 5091 | `amicus_stage` | `stage.thorsp.net` |
+| **prod** | a published GitHub **Release**, or manual | `amicus-api` | 5090 | `amicus_prod` | `api.thorsp.net` |
 
 So: merge a PR → it lands on **stage** automatically; when stage looks good, cut a
 **Release** → it goes to **prod**. `workflow_dispatch` deploys either on demand.
