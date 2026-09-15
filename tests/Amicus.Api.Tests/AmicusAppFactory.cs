@@ -69,6 +69,9 @@ public sealed class AmicusAppFactory : WebApplicationFactory<Program>
         builder.UseSetting("RateLimits:GlobalPermitsPerMinute", "1000000");
         builder.UseSetting("RateLimits:AuthPermitsPerMinute", "1000000");
 
+        builder.UseSetting("Cors:Origins:0", "https://app.thorsp.net");
+        builder.UseSetting("Cors:OriginSuffixes:0", ".amicus-web.pages.dev");
+
         foreach (var (key, value) in Overrides)
         {
             builder.UseSetting(key, value);
@@ -193,9 +196,7 @@ public sealed class FakeEmailSender : IEmailSender<AppUser>
 
     public Task SendConfirmationLinkAsync(AppUser user, string email, string link)
     {
-        // No-op, mirroring the production SmtpEmailSender: the app auto-confirms on
-        // registration and does not send a 'confirm your address' email. Recording
-        // it would test a behaviour the real sender doesn't have.
+        Sent.Add(new SentEmail(email, "confirm", "confirmation", link));
         return Task.CompletedTask;
     }
 

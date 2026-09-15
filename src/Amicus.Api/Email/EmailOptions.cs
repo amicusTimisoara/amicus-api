@@ -27,6 +27,13 @@ public sealed class EmailOptions
     /// </summary>
     public string WebResetUrl { get; set; } = "";
 
+    /// <summary>
+    /// Base URL of the web client's confirm page. When set, the confirmation
+    /// email links to <c>{WebConfirmUrl}?userId=…&amp;code=…</c> (a nicer page than
+    /// the API's raw confirm endpoint); when empty, it links straight to the API.
+    /// </summary>
+    public string WebConfirmUrl { get; set; } = "";
+
     public bool IsConfigured => !string.IsNullOrWhiteSpace(Host)
         && !string.IsNullOrWhiteSpace(User)
         && !string.IsNullOrWhiteSpace(Password);

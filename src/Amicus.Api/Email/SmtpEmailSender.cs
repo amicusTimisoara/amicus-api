@@ -27,11 +27,33 @@ public sealed class SmtpEmailSender(
 
     public Task SendConfirmationLinkAsync(AppUser user, string email, string confirmationLink)
     {
-        // No-op: the app doesn't require email confirmation and auto-confirms on
-        // registration (AutoConfirmUserManager), so a "confirm your address" email
-        // would ask the student to do something already done.
-        logger.LogInformation("Skipped confirmation email to {Email} — not required.", email);
-        return Task.CompletedTask;
+        // The account is already usable (auto-confirmed on register), so this is a
+        // friendly "verify your address" — clicking it is idempotent. When the web
+        // confirm page is configured, link to it (carrying the same userId+code the
+        // API endpoint expects); otherwise link straight to the API endpoint.
+        var link = RewriteToWeb(confirmationLink, _options.WebConfirmUrl);
+        return SendAsync(email, "Confirmă-ți adresa de email",
+            $"Salut,<br><br>Bine ai venit la AMiCUS Timișoara! Contul tău este gata. " +
+            $"Poți confirma adresa apăsând <a href=\"{link}\">aici</a>.<br><br>" +
+            $"Dacă nu ai creat tu acest cont, ignoră acest email.<br><br>AMiCUS Timișoara");
+    }
+
+    /// <summary>
+    /// Turns an API-generated link (…/auth/confirmEmail?userId=&amp;code=) into a link
+    /// to the web page carrying the same query, so the student lands on a real page
+    /// rather than a raw API response. Falls back to the original link if the web
+    /// base is unset or the original can't be parsed.
+    /// </summary>
+    private static string RewriteToWeb(string apiLink, string webBase)
+    {
+        if (string.IsNullOrWhiteSpace(webBase)
+            || !Uri.TryCreate(apiLink, UriKind.Absolute, out var uri))
+        {
+            return apiLink;
+        }
+
+        var query = uri.Query.TrimStart('?');
+        return string.IsNullOrEmpty(query) ? webBase : $"{webBase}?{query}";
     }
 
     public Task SendPasswordResetLinkAsync(AppUser user, string email, string resetLink) =>
