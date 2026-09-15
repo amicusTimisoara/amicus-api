@@ -25,10 +25,14 @@ public sealed class SmtpEmailSender(
 {
     private readonly EmailOptions _options = options.Value;
 
-    public Task SendConfirmationLinkAsync(AppUser user, string email, string confirmationLink) =>
-        SendAsync(email, "Confirmă-ți adresa de email",
-            $"Salut,<br><br>Confirmă-ți adresa apăsând " +
-            $"<a href=\"{confirmationLink}\">aici</a>.<br><br>AMiCUS Timișoara");
+    public Task SendConfirmationLinkAsync(AppUser user, string email, string confirmationLink)
+    {
+        // No-op: the app doesn't require email confirmation and auto-confirms on
+        // registration (AutoConfirmUserManager), so a "confirm your address" email
+        // would ask the student to do something already done.
+        logger.LogInformation("Skipped confirmation email to {Email} — not required.", email);
+        return Task.CompletedTask;
+    }
 
     public Task SendPasswordResetLinkAsync(AppUser user, string email, string resetLink) =>
         SendAsync(email, "Resetare parolă",

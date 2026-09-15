@@ -59,7 +59,8 @@ public static class IdentitySetup
                 options.Lockout.MaxFailedAccessAttempts = 10;
             })
             .AddRoles<AppRole>()
-            .AddEntityFrameworkStores<AmicusDbContext>();
+            .AddEntityFrameworkStores<AmicusDbContext>()
+            .AddUserManager<AutoConfirmUserManager>();
 
         return services;
     }
