@@ -1,0 +1,47 @@
+name: Deploy
+
+on:
+  # Every merge to main deploys STAGE.
+  push:
+    branches: [main]
+  # A published GitHub Release deploys PROD.
+  release:
+    types: [published]
+  # Manual: pick the environment.
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Which environment to deploy
+        type: choice
+        options: [stage, prod]
+        default: stage
+
+permissions:
+  contents: read
+
+# Never deploy two commits over each other; let a run finish.
+concurrency:
+  group: deploy-${{ github.event_name == 'release' && 'prod' || 'stage' }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    # Self-hosted runner on the Pi. Guarded to this repo so a fork can't target it.
+    runs-on: [self-hosted, pi]
+    if: github.repository == 'amicusTimisoara/amicus-api'
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Resolve environment
+        id: env
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            echo "name=prod" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "name=${{ inputs.environment }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=stage" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Deploy
+        run: bash scripts/deploy.sh "${{ steps.env.outputs.name }}"

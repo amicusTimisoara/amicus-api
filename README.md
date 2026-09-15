@@ -237,6 +237,24 @@ The 2016-slot row is why `GET /events/{slug}/board` takes optional `from`/`to`:
 a whole multi-week event is a genuinely large response, and clients showing one
 day should say so.
 
+## Deployment (CI/CD)
+
+Two environments, both on the Pi, deployed by a self-hosted GitHub Actions runner
+(`.github/workflows/deploy.yml` → `scripts/deploy.sh`):
+
+| env | trigger | service | port | database | URL |
+|---|---|---|---|---|---|
+| **stage** | push to `main`, or manual | `amicus-api-stage` | 5091 | `amicus_stage` | `thorsp.net/amicus-stage/` |
+| **prod** | a published GitHub **Release**, or manual | `amicus-api` | 5090 | `amicus_prod` | `thorsp.net/amicus/` |
+
+So: merge a PR → it lands on **stage** automatically; when stage looks good, cut a
+**Release** → it goes to **prod**. `workflow_dispatch` deploys either on demand.
+
+`deploy.sh <stage|prod>` publishes, applies migrations to that env's database, restarts
+the service, and health-checks it. Secrets live in `~/.config/amicus/api.env` /
+`api-stage.env` (not in git). CI (`ci.yml`, build + test) still runs on GitHub-hosted
+runners for every PR; only the deploy job uses the Pi.
+
 ## Tests
 
 ```bash
