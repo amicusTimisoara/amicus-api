@@ -1,4 +1,5 @@
 using Amicus.Api.Auth;
+using Amicus.Api.Email;
 using Amicus.Api.Endpoints;
 using Amicus.Api.Setup;
 using Amicus.Infrastructure;
@@ -24,6 +25,13 @@ builder.Services
     .AddOptions<GoogleAuthOptions>()
     .Bind(builder.Configuration.GetSection(GoogleAuthOptions.SectionName));
 builder.Services.AddScoped<IGoogleIdTokenVerifier, GoogleIdTokenVerifier>();
+
+builder.Services
+    .AddOptions<EmailOptions>()
+    .Bind(builder.Configuration.GetSection(EmailOptions.SectionName));
+// Registering this activates Identity's /forgotPassword + /resetPassword; without
+// it they succeed but send nothing.
+builder.Services.AddScoped<IEmailSender<AppUser>, SmtpEmailSender>();
 
 var app = builder.Build();
 

@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Identity;
 using Amicus.Api.Contracts;
 using Amicus.Domain;
 using Amicus.Domain.Entities;
@@ -82,6 +83,7 @@ public static class AdminEndpoints
                 Id = Guid.CreateVersion7(),
                 FullName = request.FullName.Trim(),
                 Specialty = request.Specialty.Trim(),
+                Category = request.Category ?? SpecialistCategory.Social,
                 Bio = string.IsNullOrWhiteSpace(request.Bio) ? null : request.Bio.Trim(),
                 IsActive = true,
                 CreatedAt = clock.GetUtcNow(),
@@ -93,6 +95,52 @@ public static class AdminEndpoints
             return CreatedAt.Path(http, $"/admin/specialists/{specialist.Id}", specialist.Id);
         })
             .WithSummary("Add a specialist. No account is created — they do not need one.");
+
+        group.MapPatch("/specialists/{specialistId:guid}", async (
+            Guid specialistId, [FromBody] UpdateSpecialistRequest request,
+            AmicusDbContext db, CancellationToken ct) =>
+        {
+            var specialist = await db.Specialists
+                .FirstOrDefaultAsync(s => s.Id == specialistId, ct);
+
+            if (specialist is null)
+            {
+                return Results.NotFound();
+            }
+
+            // Only the fields the caller sent are touched — a null means "leave it".
+            if (request.FullName is not null)
+            {
+                specialist.FullName = request.FullName.Trim();
+            }
+
+            if (request.Specialty is not null)
+            {
+                specialist.Specialty = request.Specialty.Trim();
+            }
+
+            if (request.Bio is not null)
+            {
+                specialist.Bio = string.IsNullOrWhiteSpace(request.Bio) ? null : request.Bio.Trim();
+            }
+
+            if (request.Category is not null)
+            {
+                specialist.Category = request.Category.Value;
+            }
+
+            if (request.IsActive is not null)
+            {
+                specialist.IsActive = request.IsActive.Value;
+            }
+
+            await db.SaveChangesAsync(ct);
+
+            return Results.NoContent();
+        })
+            .WithSummary(
+                "Edit a specialist. Only the fields present in the body change — the "
+                + "way to set a category on one created before the field existed.");
 
         group.MapPost("/events/{eventId:guid}/specialists", async (
             Guid eventId, [FromBody] AssignSpecialistRequest request,
@@ -268,7 +316,7 @@ public static class AdminEndpoints
             Results.Ok(await db.Specialists
                 .OrderBy(s => s.FullName)
                 .Select(s => new AdminSpecialistSummary(
-                    s.Id, s.FullName, s.Specialty, s.Bio, s.IsActive))
+                    s.Id, s.FullName, s.Specialty, s.Category.ToString(), s.Bio, s.IsActive))
                 .ToListAsync(ct)))
             .WithSummary("Every specialist on record, for assigning to an event.");
 
@@ -410,6 +458,37 @@ public static class AdminEndpoints
             return Results.NoContent();
         })
             .WithSummary("Put a blocked slot back on the board.");
+
+        group.MapPost("/users/reset-password", async (
+            [FromBody] AdminResetPasswordRequest request,
+            UserManager<AppUser> users,
+            CancellationToken ct) =>
+        {
+            // The human fallback for when email delivery is unavailable or a student
+            // can't receive it: an admin sets a new password directly. Goes through a
+            // reset token rather than a raw hash write, so every Identity password
+            // rule and the security-stamp bump still apply.
+            var user = await users.FindByEmailAsync(request.Email);
+
+            if (user is null)
+            {
+                return Results.NotFound(new { error = "No account with that email." });
+            }
+
+            var token = await users.GeneratePasswordResetTokenAsync(user);
+            var result = await users.ResetPasswordAsync(user, token, request.NewPassword);
+
+            if (!result.Succeeded)
+            {
+                return Results.ValidationProblem(result.Errors.ToDictionary(
+                    e => e.Code, e => new[] { e.Description }));
+            }
+
+            return Results.NoContent();
+        })
+            .WithSummary(
+                "Set a student's password directly — the fallback for when self-service "
+                + "reset email is unavailable.");
 
         return app;
     }

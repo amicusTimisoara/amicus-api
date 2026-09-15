@@ -52,6 +52,13 @@ public class AmicusDbContext(DbContextOptions<AmicusDbContext> options)
             e.Property(x => x.Specialty).HasMaxLength(100);
             e.Property(x => x.Bio).HasMaxLength(2000);
 
+            // Stored as text, not an int: a human reading the table sees
+            // 'Medical', and a new category is a code change, not a magic number.
+            e.Property(x => x.Category)
+                .HasConversion<string>()
+                .HasMaxLength(20)
+                .HasDefaultValue(SpecialistCategory.Social);
+
             // One identity user is at most one specialist, but most specialists
             // have no account at all — so the uniqueness has to skip the nulls.
             e.HasIndex(x => x.UserId)

@@ -1,3 +1,5 @@
+using Amicus.Domain;
+
 namespace Amicus.Api.Contracts;
 
 public sealed record EventSummary(
@@ -5,7 +7,7 @@ public sealed record EventSummary(
 
 public sealed record SpecialistSummary(
     Guid EventSpecialistId, Guid SpecialistId, string FullName, string Specialty,
-    string? Bio, string? Location);
+    string Category, string? Bio, string? Location);
 
 public sealed record EventDetail(
     EventSummary Event, IReadOnlyList<SpecialistSummary> Specialists);
@@ -34,7 +36,17 @@ public sealed record BookingDetail(
 public sealed record CreateEventRequest(
     string Name, string Slug, DateOnly StartsOn, DateOnly EndsOn, string? TimeZoneId);
 
-public sealed record CreateSpecialistRequest(string FullName, string Specialty, string? Bio);
+public sealed record CreateSpecialistRequest(
+    string FullName, string Specialty, string? Bio, SpecialistCategory? Category);
+
+/// <summary>
+/// Every field is optional — only the ones present are changed. Lets an admin
+/// set a category on a specialist created before the field existed, or fix any
+/// other detail, without a full replace.
+/// </summary>
+public sealed record UpdateSpecialistRequest(
+    string? FullName, string? Specialty, string? Bio,
+    SpecialistCategory? Category, bool? IsActive);
 
 public sealed record AssignSpecialistRequest(Guid SpecialistId, string? Location);
 
@@ -43,6 +55,8 @@ public sealed record CreateSlotPatternRequest(
     int SlotDurationMinutes, int BreakMinutes);
 
 public sealed record GenerateSlotsResult(int Created, int AlreadyPresent, int RemovedStale);
+
+public sealed record AdminResetPasswordRequest(string Email, string NewPassword);
 
 public sealed record CheckInRequest(string Code);
 
@@ -58,7 +72,7 @@ public sealed record AdminEventSummary(
     string TimeZoneId, bool IsPublished, int SpecialistCount, int SlotCount);
 
 public sealed record AdminSpecialistSummary(
-    Guid Id, string FullName, string Specialty, string? Bio, bool IsActive);
+    Guid Id, string FullName, string Specialty, string Category, string? Bio, bool IsActive);
 
 public sealed record AdminRosterEntry(
     Guid EventSpecialistId, Guid SpecialistId, string FullName, string Specialty,
