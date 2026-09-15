@@ -1,9 +1,9 @@
 using System.Net.Http.Json;
 using Amicus.Api.Auth;
+using Microsoft.AspNetCore.Identity;
 using Amicus.Infrastructure;
 using Amicus.Infrastructure.Identity;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -26,6 +26,10 @@ public sealed class AmicusAppFactory : WebApplicationFactory<Program>
 
     /// <summary>Stubbed; nothing in the tests talks to Google's JWKS.</summary>
     public FakeGoogleVerifier Google { get; } = new();
+
+    /// <summary>Records the emails Identity asked to send, so tests can assert a
+    /// reset was actually triggered without a live SMTP server.</summary>
+    public FakeEmailSender Email { get; } = new();
 
     public FakeTimeProvider Clock { get; } = new(DateTimeOffset.Parse("2026-08-31T09:00:00Z"));
 
@@ -75,6 +79,9 @@ public sealed class AmicusAppFactory : WebApplicationFactory<Program>
             services.RemoveAll<IGoogleIdTokenVerifier>();
             services.AddSingleton<IGoogleIdTokenVerifier>(Google);
 
+            services.RemoveAll<IEmailSender<AppUser>>();
+            services.AddSingleton<IEmailSender<AppUser>>(Email);
+
             services.RemoveAll<TimeProvider>();
             services.AddSingleton<TimeProvider>(Clock);
         });
@@ -123,6 +130,7 @@ public sealed class AmicusAppFactory : WebApplicationFactory<Program>
     /// <summary>Empties every table so each test starts from nothing.</summary>
     public async Task ResetAsync()
     {
+        Email.Sent.Clear();
         using var scope = Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AmicusDbContext>();
 
@@ -175,6 +183,33 @@ public sealed class AmicusAppFactory : WebApplicationFactory<Program>
     }
 
     public sealed record AccessTokenPayload(string AccessToken);
+}
+
+public sealed record SentEmail(string To, string Subject, string Kind, string Payload);
+
+public sealed class FakeEmailSender : IEmailSender<AppUser>
+{
+    public List<SentEmail> Sent { get; } = [];
+
+    public Task SendConfirmationLinkAsync(AppUser user, string email, string link)
+    {
+        // No-op, mirroring the production SmtpEmailSender: the app auto-confirms on
+        // registration and does not send a 'confirm your address' email. Recording
+        // it would test a behaviour the real sender doesn't have.
+        return Task.CompletedTask;
+    }
+
+    public Task SendPasswordResetLinkAsync(AppUser user, string email, string link)
+    {
+        Sent.Add(new SentEmail(email, "reset", "reset-link", link));
+        return Task.CompletedTask;
+    }
+
+    public Task SendPasswordResetCodeAsync(AppUser user, string email, string code)
+    {
+        Sent.Add(new SentEmail(email, "reset", "reset-code", code));
+        return Task.CompletedTask;
+    }
 }
 
 public sealed class FakeGoogleVerifier : IGoogleIdTokenVerifier
