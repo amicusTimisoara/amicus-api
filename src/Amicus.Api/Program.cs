@@ -31,7 +31,14 @@ builder.Services
     .Bind(builder.Configuration.GetSection(EmailOptions.SectionName));
 // Registering this activates Identity's /forgotPassword + /resetPassword; without
 // it they succeed but send nothing.
-builder.Services.AddScoped<IEmailSender<AppUser>, SmtpEmailSender>();
+//
+// Transient, NOT scoped. MapIdentityApi resolves IEmailSender<TUser> once at map
+// time, from the ROOT provider — and resolving a scoped service from the root is
+// exactly what scope validation forbids. Since validation is only on in
+// Development, a scoped registration starts fine on stage and prod but crashes
+// `dotnet run` on a developer's machine. The sender holds no per-request state
+// (options and a logger, both singletons), so it has nothing to gain from a scope.
+builder.Services.AddTransient<IEmailSender<AppUser>, SmtpEmailSender>();
 
 builder.Services.AddAmicusCors(builder.Configuration);
 
