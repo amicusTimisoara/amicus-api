@@ -246,6 +246,171 @@ public static class AdminEndpoints
                 "Expand every pattern into bookable slots. Safe to re-run: existing "
                 + "slots are left alone and booked ones are never removed.");
 
+        // ---------------------------------------------------------------------
+        // Reads. Everything above creates; without these an admin console has no
+        // way to show what already exists, and no way to learn a slot's id in
+        // order to block it.
+        // ---------------------------------------------------------------------
+
+        group.MapGet("/events", async (AmicusDbContext db, CancellationToken ct) =>
+            Results.Ok(await db.Events
+                .OrderByDescending(e => e.StartsOn)
+                .Select(e => new AdminEventSummary(
+                    e.Id, e.Slug, e.Name, e.StartsOn, e.EndsOn, e.TimeZoneId, e.IsPublished,
+                    e.Specialists.Count,
+                    e.Specialists.SelectMany(es => es.Slots).Count()))
+                .ToListAsync(ct)))
+            .WithSummary(
+                "Every event, drafts included. Newest first, because the one being "
+                + "set up is the one being looked for.");
+
+        group.MapGet("/specialists", async (AmicusDbContext db, CancellationToken ct) =>
+            Results.Ok(await db.Specialists
+                .OrderBy(s => s.FullName)
+                .Select(s => new AdminSpecialistSummary(
+                    s.Id, s.FullName, s.Specialty, s.Bio, s.IsActive))
+                .ToListAsync(ct)))
+            .WithSummary("Every specialist on record, for assigning to an event.");
+
+        group.MapGet("/events/{eventId:guid}/specialists", async (
+            Guid eventId, AmicusDbContext db, CancellationToken ct) =>
+        {
+            if (!await db.Events.AnyAsync(e => e.Id == eventId, ct))
+            {
+                return Results.NotFound();
+            }
+
+            return Results.Ok(await db.EventSpecialists
+                .Where(es => es.EventId == eventId)
+                .OrderBy(es => es.Specialist!.FullName)
+                .Select(es => new AdminRosterEntry(
+                    es.Id,
+                    es.SpecialistId,
+                    es.Specialist!.FullName,
+                    es.Specialist.Specialty,
+                    es.Location,
+                    es.Patterns.Count,
+                    es.Slots.Count,
+                    es.Slots.Count(s =>
+                        s.Bookings.Any(b => b.Status != BookingStatus.Cancelled))))
+                .ToListAsync(ct));
+        })
+            .WithSummary("Who is on this event's roster, with pattern and slot counts.");
+
+        group.MapGet("/events/{eventId:guid}/slots", async (
+            Guid eventId, AmicusDbContext db, DateOnly? from, DateOnly? to,
+            CancellationToken ct) =>
+        {
+            if (from is not null && to is not null && to < from)
+            {
+                return Results.BadRequest(new { error = "'to' precedes 'from'." });
+            }
+
+            if (!await db.Events.AnyAsync(e => e.Id == eventId, ct))
+            {
+                return Results.NotFound();
+            }
+
+            // Same range-narrowing advice as the student board: a whole multi-week
+            // event is thousands of rows, and an admin screen shows one day or week.
+            var fromInstant = from is null
+                ? (DateTimeOffset?)null
+                : new DateTimeOffset(from.Value.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
+            var toInstant = to is null
+                ? (DateTimeOffset?)null
+                : new DateTimeOffset(
+                    to.Value.AddDays(1).ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
+
+            return Results.Ok(await db.Slots
+                .Where(s => s.EventSpecialist!.EventId == eventId)
+                .Where(s => fromInstant == null || s.StartsAt >= fromInstant)
+                .Where(s => toInstant == null || s.StartsAt < toInstant)
+                .OrderBy(s => s.StartsAt)
+                .Select(s => new AdminSlot(
+                    s.Id,
+                    s.EventSpecialistId,
+                    s.EventSpecialist!.Specialist!.FullName,
+                    s.StartsAt,
+                    s.EndsAt,
+                    s.IsBlocked,
+                    s.Bookings.Any(b => b.Status != BookingStatus.Cancelled)))
+                .ToListAsync(ct));
+        })
+            .WithSummary("This event's slots, drafts included. Narrow with from/to.");
+
+        // ---------------------------------------------------------------------
+        // State changes that were modelled but never reachable.
+        // ---------------------------------------------------------------------
+
+        group.MapPost("/events/{eventId:guid}/unpublish", async (
+            Guid eventId, AmicusDbContext db, CancellationToken ct) =>
+        {
+            var @event = await db.Events.FirstOrDefaultAsync(e => e.Id == eventId, ct);
+
+            if (@event is null)
+            {
+                return Results.NotFound();
+            }
+
+            @event.IsPublished = false;
+            await db.SaveChangesAsync(ct);
+
+            return Results.NoContent();
+        })
+            .WithSummary(
+                "Hide an event from students again. Existing bookings are NOT "
+                + "cancelled — the students holding them still have an appointment.");
+
+        group.MapPost("/slots/{slotId:guid}/block", async (
+            Guid slotId, AmicusDbContext db, CancellationToken ct) =>
+        {
+            var slot = await db.Slots
+                .Include(s => s.Bookings)
+                .FirstOrDefaultAsync(s => s.Id == slotId, ct);
+
+            if (slot is null)
+            {
+                return Results.NotFound();
+            }
+
+            // Refused rather than silently allowed. Blocking only removes a slot
+            // from the board; it does not cancel the booking on it. Letting this
+            // through would leave an admin believing the slot is closed while a
+            // student still turns up for it — cancel first, then block.
+            if (slot.Bookings.Any(b => b.Status != BookingStatus.Cancelled))
+            {
+                return Results.Conflict(new
+                {
+                    error = "That slot is booked. Cancel the booking before blocking it.",
+                });
+            }
+
+            slot.IsBlocked = true;
+            await db.SaveChangesAsync(ct);
+
+            return Results.NoContent();
+        })
+            .WithSummary(
+                "Take a free slot off the board without deleting it, so a cancelled "
+                + "booking's audit trail survives.");
+
+        group.MapPost("/slots/{slotId:guid}/unblock", async (
+            Guid slotId, AmicusDbContext db, CancellationToken ct) =>
+        {
+            var slot = await db.Slots.FirstOrDefaultAsync(s => s.Id == slotId, ct);
+
+            if (slot is null)
+            {
+                return Results.NotFound();
+            }
+
+            slot.IsBlocked = false;
+            await db.SaveChangesAsync(ct);
+
+            return Results.NoContent();
+        })
+            .WithSummary("Put a blocked slot back on the board.");
+
         return app;
     }
 }

@@ -48,3 +48,30 @@ public sealed record CheckInRequest(string Code);
 
 public sealed record CheckInResult(
     Guid BookingId, DateTimeOffset StartsAt, string SpecialistName, string Status);
+
+/// <summary>
+/// An event as an admin sees it — unpublished ones included, with the counts a
+/// console needs to show a roster at a glance without a request per row.
+/// </summary>
+public sealed record AdminEventSummary(
+    Guid Id, string Slug, string Name, DateOnly StartsOn, DateOnly EndsOn,
+    string TimeZoneId, bool IsPublished, int SpecialistCount, int SlotCount);
+
+public sealed record AdminSpecialistSummary(
+    Guid Id, string FullName, string Specialty, string? Bio, bool IsActive);
+
+public sealed record AdminRosterEntry(
+    Guid EventSpecialistId, Guid SpecialistId, string FullName, string Specialty,
+    string? Location, int PatternCount, int SlotCount, int BookedCount);
+
+/// <summary>
+/// A slot on the admin's view of the board.
+///
+/// Carries whether someone holds it, never who: an admin is entitled to know that
+/// — see <see cref="Amicus.Domain.Entities.Booking"/> — but a list endpoint is the
+/// wrong place to hand it out wholesale, and nothing an admin console does with
+/// this list needs a name.
+/// </summary>
+public sealed record AdminSlot(
+    Guid Id, Guid EventSpecialistId, string SpecialistName,
+    DateTimeOffset StartsAt, DateTimeOffset EndsAt, bool IsBlocked, bool HasLiveBooking);
