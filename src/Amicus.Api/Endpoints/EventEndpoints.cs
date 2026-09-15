@@ -37,6 +37,7 @@ public static class EventEndpoints
                             es.SpecialistId,
                             es.Specialist!.FullName,
                             es.Specialist.Specialty,
+                            es.Specialist.Category.ToString(),
                             es.Specialist.Bio,
                             es.Location))
                         .ToList()))
@@ -95,6 +96,7 @@ public static class EventEndpoints
                         s.EventSpecialist.SpecialistId,
                         s.EventSpecialist.Specialist!.FullName,
                         s.EventSpecialist.Specialist.Specialty,
+                        s.EventSpecialist.Specialist.Category.ToString(),
                         s.EventSpecialist.Specialist.Bio,
                         s.EventSpecialist.Location),
                     Slot = new BoardSlot(

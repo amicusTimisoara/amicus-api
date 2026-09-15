@@ -20,6 +20,13 @@ public class Specialist
     /// <summary>Shown to students, e.g. "Avocat", "Medic de familie", "Contabil".</summary>
     public required string Specialty { get; set; }
 
+    /// <summary>
+    /// The advice category, used by the clients to colour and group specialists.
+    /// Defaults to <see cref="SpecialistCategory.Social"/> — the catch-all — so a
+    /// specialist added without one is never stranded off the board.
+    /// </summary>
+    public SpecialistCategory Category { get; set; } = SpecialistCategory.Social;
+
     public string? Bio { get; set; }
 
     public bool IsActive { get; set; } = true;
