@@ -172,7 +172,7 @@ public sealed class BookingFlowTests(AmicusFixture fixture) : IAsyncLifetime
         var allowed = new HashSet<string>(StringComparer.Ordinal)
         {
             "specialist", "eventSpecialistId", "specialistId", "fullName", "specialty",
-            "category", "bio", "location", "slots", "id", "startsAt", "endsAt",
+            "category", "profile", "bio", "location", "slots", "id", "startsAt", "endsAt",
             "isAvailable", "isMine",
         };
         foreach (var name in PropertyNames(JsonDocument.Parse(raw).RootElement))

@@ -84,6 +84,7 @@ public static class AdminEndpoints
                 FullName = request.FullName.Trim(),
                 Specialty = request.Specialty.Trim(),
                 Category = request.Category ?? SpecialistCategory.Social,
+                Profile = request.Profile,
                 Bio = string.IsNullOrWhiteSpace(request.Bio) ? null : request.Bio.Trim(),
                 IsActive = true,
                 CreatedAt = clock.GetUtcNow(),
@@ -122,6 +123,11 @@ public static class AdminEndpoints
             if (request.Bio is not null)
             {
                 specialist.Bio = string.IsNullOrWhiteSpace(request.Bio) ? null : request.Bio.Trim();
+            }
+
+            if (request.Profile is not null)
+            {
+                specialist.Profile = request.Profile.Value;
             }
 
             if (request.Category is not null)
@@ -316,7 +322,8 @@ public static class AdminEndpoints
             Results.Ok(await db.Specialists
                 .OrderBy(s => s.FullName)
                 .Select(s => new AdminSpecialistSummary(
-                    s.Id, s.FullName, s.Specialty, s.Category.ToString(), s.Bio, s.IsActive))
+                    s.Id, s.FullName, s.Specialty, s.Category.ToString(),
+                    s.Profile == null ? null : s.Profile.ToString(), s.Bio, s.IsActive))
                 .ToListAsync(ct)))
             .WithSummary("Every specialist on record, for assigning to an event.");
 
