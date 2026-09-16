@@ -1,6 +1,8 @@
 using System.Security.Claims;
 using Amicus.Api.Contracts;
+using Amicus.Infrastructure;
 using Amicus.Infrastructure.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 
@@ -15,7 +17,8 @@ public static class AccountEndpoints
         // Identity's /auth/manage/info returns only email + isEmailConfirmed, so it
         // can't carry the display name or photo the clients want. This does.
         group.MapGet("/me", async (
-            UserManager<AppUser> users, ClaimsPrincipal principal, CancellationToken ct) =>
+            UserManager<AppUser> users, AmicusDbContext db,
+            ClaimsPrincipal principal, CancellationToken ct) =>
         {
             var user = await users.GetUserAsync(principal);
             if (user is null)
@@ -23,14 +26,18 @@ public static class AccountEndpoints
                 return Results.NotFound();
             }
 
+            var isCarte = await db.Specialists
+                .AnyAsync(s => s.UserId == user.Id && s.IsActive, ct);
+
             return Results.Ok(new AccountInfo(
-                user.Email!, user.DisplayName, user.PhotoUrl, user.EmailConfirmed));
+                user.Email!, user.DisplayName, user.PhotoUrl, user.EmailConfirmed, isCarte));
         })
             .WithSummary("The signed-in user's own profile (email, display name, photo).");
 
         group.MapPatch("/me", async (
             [FromBody] UpdateAccountRequest request,
-            UserManager<AppUser> users, ClaimsPrincipal principal, CancellationToken ct) =>
+            UserManager<AppUser> users, AmicusDbContext db,
+            ClaimsPrincipal principal, CancellationToken ct) =>
         {
             var user = await users.GetUserAsync(principal);
             if (user is null)
@@ -50,8 +57,11 @@ public static class AccountEndpoints
                 }
             }
 
+            var isCarte = await db.Specialists
+                .AnyAsync(s => s.UserId == user.Id && s.IsActive, ct);
+
             return Results.Ok(new AccountInfo(
-                user.Email!, user.DisplayName, user.PhotoUrl, user.EmailConfirmed));
+                user.Email!, user.DisplayName, user.PhotoUrl, user.EmailConfirmed, isCarte));
         })
             .WithSummary("Update the signed-in user's own profile (display name).");
 

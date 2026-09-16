@@ -14,6 +14,17 @@ builder.Services.AddAmicusIdentity();
 builder.Services.AddOpenApi();
 builder.Services.AddHealthChecks().AddDbContextCheck<AmicusDbContext>();
 
+// Accept enums by name as well as by number. Every response already SENDS them
+// as names — `Category.ToString()` — so a client that reads "Medical" and posts
+// "Medical" back was getting a 400 for using our own vocabulary. Numbers keep
+// working (JsonStringEnumConverter allows them by default), so nothing that
+// already posts 3 breaks.
+builder.Services.ConfigureHttpJsonOptions(options =>
+{
+    options.SerializerOptions.Converters.Add(
+        new System.Text.Json.Serialization.JsonStringEnumConverter());
+});
+
 // Injected rather than calling DateTimeOffset.UtcNow inline, so tests can book a
 // slot in a controlled "now" instead of depending on the wall clock.
 builder.Services.AddSingleton(TimeProvider.System);
@@ -70,6 +81,7 @@ app.MapAccount();
 app.MapEvents();
 app.MapBookings();
 app.MapAdmin();
+app.MapSpecialistApplications();
 
 // A friendly root so hitting the base URL in a browser shows the API is alive
 // instead of a bare 404 — it is an API with no page, and a 404 there reads as
