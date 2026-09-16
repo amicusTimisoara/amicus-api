@@ -22,6 +22,8 @@ public class AmicusDbContext(DbContextOptions<AmicusDbContext> options)
 
     public DbSet<Booking> Bookings => Set<Booking>();
 
+    public DbSet<SpecialistApplication> SpecialistApplications => Set<SpecialistApplication>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -64,6 +66,38 @@ public class AmicusDbContext(DbContextOptions<AmicusDbContext> options)
             e.HasIndex(x => x.UserId)
                 .IsUnique()
                 .HasFilter("user_id IS NOT NULL");
+        });
+
+        builder.Entity<SpecialistApplication>(e =>
+        {
+            e.Property(x => x.FullName).HasMaxLength(200);
+            e.Property(x => x.Phone).HasMaxLength(40);
+            e.Property(x => x.Specialty).HasMaxLength(100);
+            e.Property(x => x.Story).HasMaxLength(4000);
+            e.Property(x => x.ReviewNote).HasMaxLength(1000);
+
+            // Same reasoning as Specialist.Category: stored as text so the table
+            // reads like prose and a new value is a code change, not a number.
+            e.Property(x => x.Category).HasConversion<string>().HasMaxLength(20);
+            e.Property(x => x.Profile).HasConversion<string>().HasMaxLength(20);
+            e.Property(x => x.Format).HasConversion<string>().HasMaxLength(20);
+            e.Property(x => x.Status).HasConversion<string>().HasMaxLength(20);
+
+            e.HasOne(x => x.Specialist)
+                .WithMany()
+                .HasForeignKey(x => x.SpecialistId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            // At most one application in flight per person. A rejected one must
+            // not block a better second attempt, so only Pending is constrained —
+            // and an approved applicant is already a „carte”, so they have no
+            // reason to apply again.
+            e.HasIndex(x => x.UserId)
+                .IsUnique()
+                .HasFilter("status = 'Pending'");
+
+            // The queue is read newest-first, and only ever filtered by status.
+            e.HasIndex(x => new { x.Status, x.CreatedAt });
         });
 
         builder.Entity<EventSpecialist>(e =>

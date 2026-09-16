@@ -70,6 +70,7 @@ app.MapAccount();
 app.MapEvents();
 app.MapBookings();
 app.MapAdmin();
+app.MapSpecialistApplications();
 
 // A friendly root so hitting the base URL in a browser shows the API is alive
 // instead of a bare 404 — it is an API with no page, and a 404 there reads as

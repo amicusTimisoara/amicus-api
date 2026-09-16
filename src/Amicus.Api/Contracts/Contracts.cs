@@ -57,10 +57,35 @@ public sealed record CreateSlotPatternRequest(
 
 public sealed record GenerateSlotsResult(int Created, int AlreadyPresent, int RemovedStale);
 
+/// <summary>What a student tells us when asking to become a „carte”.</summary>
+public sealed record SubmitSpecialistApplicationRequest(
+    string FullName, string Phone, string Specialty, SpecialistCategory Category,
+    StoryProfile? Profile, string Story, MeetingFormat Format,
+    bool SpeaksEnglish, bool AcceptsSmallGroups);
+
+/// <summary>
+/// An application, as its own author or an admin sees it. <c>Phone</c> is here
+/// because both of those are entitled to it; it never reaches a student-facing
+/// contract.
+/// </summary>
+public sealed record SpecialistApplicationDetail(
+    Guid Id, string FullName, string Phone, string Specialty, string Category,
+    string? Profile, string Story, string Format, bool SpeaksEnglish,
+    bool AcceptsSmallGroups, string Status, string? ReviewNote,
+    DateTimeOffset CreatedAt, DateTimeOffset? ReviewedAt, Guid? SpecialistId);
+
+public sealed record RejectSpecialistApplicationRequest(string? Note);
+
 /// <summary>The signed-in user's own profile. `photoUrl` is null for a password
-/// account; `displayName` is null until set (or filled by Google).</summary>
+/// account; `displayName` is null until set (or filled by Google).
+///
+/// `isCarte` is true once an approved application has linked this account to a
+/// <c>Specialist</c>. Clients use it to mark the avatar, so it travels with the
+/// profile rather than being a second request the header would have to make on
+/// every page.</summary>
 public sealed record AccountInfo(
-    string Email, string? DisplayName, string? PhotoUrl, bool IsEmailConfirmed);
+    string Email, string? DisplayName, string? PhotoUrl, bool IsEmailConfirmed,
+    bool IsCarte);
 
 /// <summary>Only fields present are changed. `displayName` empty/whitespace clears it.</summary>
 public sealed record UpdateAccountRequest(string? DisplayName);
