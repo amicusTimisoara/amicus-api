@@ -56,6 +56,16 @@ public static class GoogleAuthEndpoints
 
             var user = await users.FindByLoginAsync(ProviderName, identity.Subject);
 
+            // Keep the profile fresh: Google photos and names change, so mirror the
+            // latest on every sign-in for a user we already know.
+            if (user is not null
+                && (user.PhotoUrl != identity.Picture || user.DisplayName != identity.Name))
+            {
+                user.PhotoUrl = identity.Picture;
+                user.DisplayName = identity.Name;
+                await users.UpdateAsync(user);
+            }
+
             if (user is null)
             {
                 user = await users.FindByEmailAsync(identity.Email);
@@ -71,6 +81,7 @@ public static class GoogleAuthEndpoints
                         // would be theatre.
                         EmailConfirmed = true,
                         DisplayName = identity.Name,
+                        PhotoUrl = identity.Picture,
                         CreatedAt = DateTimeOffset.UtcNow,
                     };
 

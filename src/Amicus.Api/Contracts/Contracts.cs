@@ -56,6 +56,14 @@ public sealed record CreateSlotPatternRequest(
 
 public sealed record GenerateSlotsResult(int Created, int AlreadyPresent, int RemovedStale);
 
+/// <summary>The signed-in user's own profile. `photoUrl` is null for a password
+/// account; `displayName` is null until set (or filled by Google).</summary>
+public sealed record AccountInfo(
+    string Email, string? DisplayName, string? PhotoUrl, bool IsEmailConfirmed);
+
+/// <summary>Only fields present are changed. `displayName` empty/whitespace clears it.</summary>
+public sealed record UpdateAccountRequest(string? DisplayName);
+
 public sealed record AdminResetPasswordRequest(string Email, string NewPassword);
 
 public sealed record CheckInRequest(string Code);

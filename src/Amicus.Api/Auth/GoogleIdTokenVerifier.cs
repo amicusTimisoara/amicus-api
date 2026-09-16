@@ -62,6 +62,7 @@ public sealed class GoogleIdTokenVerifier(
             payload.Subject,
             payload.Email,
             payload.EmailVerified,
-            payload.Name);
+            payload.Name,
+            payload.Picture);
     }
 }

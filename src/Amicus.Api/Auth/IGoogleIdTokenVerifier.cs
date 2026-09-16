@@ -1,7 +1,8 @@
 namespace Amicus.Api.Auth;
 
 /// <summary>Identity Google vouches for, once its ID token has been verified.</summary>
-public sealed record GoogleIdentity(string Subject, string Email, bool EmailVerified, string? Name);
+public sealed record GoogleIdentity(
+    string Subject, string Email, bool EmailVerified, string? Name, string? Picture);
 
 /// <summary>
 /// Abstracted so the sign-in logic — find-or-create the user, link the external

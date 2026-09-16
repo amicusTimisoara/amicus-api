@@ -26,7 +26,7 @@ public sealed class GoogleSignInTests(AmicusFixture fixture) : IAsyncLifetime
     {
         _app.Google.Accept(
             "good-token",
-            new GoogleIdentity("google-sub-1", "new@amicus.test", EmailVerified: true, "Noua"));
+            new GoogleIdentity("google-sub-1", "new@amicus.test", EmailVerified: true, "Noua", "https://pic/noua.jpg"));
 
         var client = _app.CreateClient();
         var response = await client.PostAsJsonAsync("/auth/google", new { idToken = "good-token" });
@@ -48,6 +48,7 @@ public sealed class GoogleSignInTests(AmicusFixture fixture) : IAsyncLifetime
         Assert.NotNull(user);
         Assert.True(user!.EmailConfirmed);
         Assert.Equal("Noua", user.DisplayName);
+        Assert.Equal("https://pic/noua.jpg", user.PhotoUrl);
         Assert.Equal(
             "Google",
             Assert.Single(await users.GetLoginsAsync(user)).LoginProvider);
@@ -58,7 +59,7 @@ public sealed class GoogleSignInTests(AmicusFixture fixture) : IAsyncLifetime
     {
         _app.Google.Accept(
             "good-token",
-            new GoogleIdentity("google-sub-1", "repeat@amicus.test", EmailVerified: true, "Rep"));
+            new GoogleIdentity("google-sub-1", "repeat@amicus.test", EmailVerified: true, "Rep", null));
 
         var client = _app.CreateClient();
 
@@ -86,7 +87,7 @@ public sealed class GoogleSignInTests(AmicusFixture fixture) : IAsyncLifetime
 
         _app.Google.Accept(
             "good-token",
-            new GoogleIdentity("google-sub-9", "both@amicus.test", EmailVerified: true, "Both"));
+            new GoogleIdentity("google-sub-9", "both@amicus.test", EmailVerified: true, "Both", null));
 
         (await client.PostAsJsonAsync("/auth/google", new { idToken = "good-token" }))
             .EnsureSuccessStatusCode();
@@ -111,7 +112,7 @@ public sealed class GoogleSignInTests(AmicusFixture fixture) : IAsyncLifetime
         // anyone who sets their Google profile email to a victim's take that account.
         _app.Google.Accept(
             "unverified",
-            new GoogleIdentity("google-sub-2", "victim@amicus.test", EmailVerified: false, null));
+            new GoogleIdentity("google-sub-2", "victim@amicus.test", EmailVerified: false, null, null));
 
         var response = await _app.CreateClient()
             .PostAsJsonAsync("/auth/google", new { idToken = "unverified" });
