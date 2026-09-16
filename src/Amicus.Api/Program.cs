@@ -66,6 +66,7 @@ var auth = app.MapGroup("/auth").RequireRateLimiting(RateLimitSetup.AuthPolicy);
 auth.MapIdentityApi<AppUser>();
 auth.MapGoogleAuth();
 
+app.MapAccount();
 app.MapEvents();
 app.MapBookings();
 app.MapAdmin();

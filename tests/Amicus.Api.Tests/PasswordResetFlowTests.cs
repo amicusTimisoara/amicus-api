@@ -93,7 +93,7 @@ public sealed class PasswordResetFlowTests(AmicusFixture fixture) : IAsyncLifeti
     public async Task A_google_user_is_also_confirmed()
     {
         _app.Google.Accept("tok",
-            new Amicus.Api.Auth.GoogleIdentity("g-1", "g@amicus.test", EmailVerified: true, "G"));
+            new Amicus.Api.Auth.GoogleIdentity("g-1", "g@amicus.test", EmailVerified: true, "G", null));
         var client = _app.CreateClient();
         (await client.PostAsJsonAsync("/auth/google", new { idToken = "tok" }))
             .EnsureSuccessStatusCode();
