@@ -218,6 +218,57 @@ public sealed class CarteSlotTests(AmicusFixture fixture) : IAsyncLifetime
     }
 
     [Fact]
+    public async Task A_carte_cannot_be_put_on_two_events_covering_the_same_days()
+    {
+        var (_, admin, _) = await SetUpCarteAsync();
+
+        var specialists = await admin.GetFromJsonAsync<List<Dictionary<string, object>>>(
+            "/admin/specialists");
+        var specialistId = specialists!.Select(x => x["id"].ToString()).Last();
+
+        var second = await admin.PostAsJsonAsync("/admin/events", new
+        {
+            name = "Toamna", slug = "toamna", startsOn = "2026-09-15", endsOn = "2026-10-31",
+        });
+        var secondId = (await second.Content.ReadFromJsonAsync<EventDto>())!.Id;
+
+        // Overlapping EVENTS are fine — separate rosters never collide. It is a
+        // specialist on BOTH that makes a date stop identifying one event, which
+        // is exactly when publishing has nothing to resolve against.
+        var assigned = await admin.PostAsJsonAsync($"/admin/events/{secondId}/specialists",
+            new { specialistId, location = "Sala 2" });
+
+        Assert.Equal(HttpStatusCode.Conflict, assigned.StatusCode);
+        var body = await assigned.Content.ReadAsStringAsync();
+        Assert.Contains("Septembrie", body);
+    }
+
+    [Fact]
+    public async Task Overlapping_events_are_allowed_when_the_rosters_are_separate()
+    {
+        var (_, admin, _) = await SetUpCarteAsync();
+
+        var second = await admin.PostAsJsonAsync("/admin/events", new
+        {
+            name = "Toamna", slug = "toamna", startsOn = "2026-09-15", endsOn = "2026-10-31",
+        });
+        var secondId = (await second.Content.ReadFromJsonAsync<EventDto>())!.Id;
+
+        // A DIFFERENT specialist on the overlapping event is not a problem, so the
+        // guard must not degenerate into "events may never overlap".
+        var other = await admin.PostAsJsonAsync("/admin/specialists", new
+        {
+            fullName = "Altcineva", specialty = "Artist", category = "Social",
+        });
+        var otherId = await other.Content.ReadFromJsonAsync<Guid>();
+
+        var assigned = await admin.PostAsJsonAsync($"/admin/events/{secondId}/specialists",
+            new { specialistId = otherId, location = "Sala 2" });
+
+        assigned.EnsureSuccessStatusCode();
+    }
+
+    [Fact]
     public async Task A_student_who_is_not_a_carte_cannot_publish_anything()
     {
         var student = await _app.SignedInClientAsync("doar-student@amicus.test");
