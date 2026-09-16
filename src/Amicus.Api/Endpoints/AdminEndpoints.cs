@@ -167,6 +167,33 @@ public static class AdminEndpoints
                     new { error = "That specialist is already assigned to this event." });
             }
 
+            // Two events covering the same day is fine in general — they can have
+            // completely separate rosters. It breaks only for a specialist who is
+            // on BOTH, because then a date no longer identifies one event and
+            // publishing an interval has nothing to resolve against.
+            //
+            // Refused here rather than at publish time. Otherwise the „carte”
+            // meets "that date falls in more than one event" days later, on a
+            // screen that gives them no way to act on it, while the admin who
+            // caused it saw nothing go wrong.
+            var target = await db.Events.FirstAsync(e => e.Id == eventId, ct);
+            var clash = await db.EventSpecialists
+                .Include(es => es.Event)
+                .Where(es => es.SpecialistId == request.SpecialistId)
+                .Where(es => es.Event!.StartsOn <= target.EndsOn
+                    && target.StartsOn <= es.Event.EndsOn)
+                .Select(es => es.Event!.Name)
+                .FirstOrDefaultAsync(ct);
+
+            if (clash is not null)
+            {
+                return Results.Conflict(new
+                {
+                    error = $"They are already on \"{clash}\", which covers the same dates. "
+                        + "A specialist on two overlapping events cannot publish on those days.",
+                });
+            }
+
             var assignment = new EventSpecialist
             {
                 Id = Guid.CreateVersion7(),
