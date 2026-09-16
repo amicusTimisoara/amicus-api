@@ -27,6 +27,13 @@ public class Specialist
     /// </summary>
     public SpecialistCategory Category { get; set; } = SpecialistCategory.Social;
 
+    /// <summary>
+    /// Whose story this book tells. Null until someone decides — see
+    /// <see cref="StoryProfile"/> for why this is a separate axis from
+    /// <see cref="Category"/> rather than more values on it.
+    /// </summary>
+    public StoryProfile? Profile { get; set; }
+
     public string? Bio { get; set; }
 
     public bool IsActive { get; set; } = true;

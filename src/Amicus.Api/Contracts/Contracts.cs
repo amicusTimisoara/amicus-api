@@ -7,7 +7,7 @@ public sealed record EventSummary(
 
 public sealed record SpecialistSummary(
     Guid EventSpecialistId, Guid SpecialistId, string FullName, string Specialty,
-    string Category, string? Bio, string? Location);
+    string Category, string? Profile, string? Bio, string? Location);
 
 public sealed record EventDetail(
     EventSummary Event, IReadOnlyList<SpecialistSummary> Specialists);
@@ -37,7 +37,8 @@ public sealed record CreateEventRequest(
     string Name, string Slug, DateOnly StartsOn, DateOnly EndsOn, string? TimeZoneId);
 
 public sealed record CreateSpecialistRequest(
-    string FullName, string Specialty, string? Bio, SpecialistCategory? Category);
+    string FullName, string Specialty, string? Bio, SpecialistCategory? Category,
+    StoryProfile? Profile);
 
 /// <summary>
 /// Every field is optional — only the ones present are changed. Lets an admin
@@ -46,7 +47,7 @@ public sealed record CreateSpecialistRequest(
 /// </summary>
 public sealed record UpdateSpecialistRequest(
     string? FullName, string? Specialty, string? Bio,
-    SpecialistCategory? Category, bool? IsActive);
+    SpecialistCategory? Category, StoryProfile? Profile, bool? IsActive);
 
 public sealed record AssignSpecialistRequest(Guid SpecialistId, string? Location);
 
@@ -80,7 +81,8 @@ public sealed record AdminEventSummary(
     string TimeZoneId, bool IsPublished, int SpecialistCount, int SlotCount);
 
 public sealed record AdminSpecialistSummary(
-    Guid Id, string FullName, string Specialty, string Category, string? Bio, bool IsActive);
+    Guid Id, string FullName, string Specialty, string Category, string? Profile,
+    string? Bio, bool IsActive);
 
 public sealed record AdminRosterEntry(
     Guid EventSpecialistId, Guid SpecialistId, string FullName, string Specialty,
