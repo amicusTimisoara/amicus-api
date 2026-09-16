@@ -191,6 +191,35 @@ public sealed class SpecialistApplicationTests(AmicusFixture fixture) : IAsyncLi
     }
 
     [Fact]
+    public async Task Enum_fields_are_accepted_by_name_as_well_as_by_number()
+    {
+        var student = await _app.SignedInClientAsync("nume@amicus.test");
+
+        // Every response SENDS these as names — Category.ToString() — so a client
+        // that reads "Medical" and posts "Medical" back must not get a 400 for
+        // using our own vocabulary. This failed in a real browser before
+        // JsonStringEnumConverter was configured.
+        var response = await student.PostAsJsonAsync("/account/specialist-application", new
+        {
+            fullName = "Carolina Ilie",
+            phone = "0712 345 678",
+            specialty = "Medic de familie",
+            category = "Medical",
+            profile = "Tragedie",
+            story = "Am luat-o de la capăt.",
+            format = "Online",
+            speaksEnglish = true,
+            acceptsSmallGroups = false,
+        });
+
+        response.EnsureSuccessStatusCode();
+        var application = await response.Content.ReadFromJsonAsync<ApplicationDto>();
+        Assert.Equal("Medical", application!.Category);
+        Assert.Equal("Tragedie", application.Profile);
+        Assert.Equal("Online", application.Format);
+    }
+
+    [Fact]
     public async Task Never_applying_is_not_an_error()
     {
         var student = await _app.SignedInClientAsync("nimic@amicus.test");
