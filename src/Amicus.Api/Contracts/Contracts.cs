@@ -76,6 +76,24 @@ public sealed record SpecialistApplicationDetail(
 
 public sealed record RejectSpecialistApplicationRequest(string? Note);
 
+/// <summary>
+/// One interval a „carte” has published, as they see it on their own calendar.
+///
+/// `isBooked` is all they get about a booking — not who took it. A „carte” needs
+/// to know the slot is spoken for so they turn up; the student's identity
+/// reaches them at check-in, not from a calendar they may be scrolling in public.
+/// </summary>
+public sealed record CarteSlot(
+    Guid Id, DateTimeOffset StartsAt, DateTimeOffset EndsAt, bool IsBooked,
+    bool IsBlocked, string EventSlug, string EventName);
+
+/// <summary>
+/// Publishing one interval. Duration is per-interval, not a property of the
+/// „carte” — the same person can offer 20 minutes one week and an hour the next,
+/// which is why it is not on their application.
+/// </summary>
+public sealed record PublishSlotRequest(DateTimeOffset StartsAt, int DurationMinutes);
+
 /// <summary>The signed-in user's own profile. `photoUrl` is null for a password
 /// account; `displayName` is null until set (or filled by Google).
 ///
