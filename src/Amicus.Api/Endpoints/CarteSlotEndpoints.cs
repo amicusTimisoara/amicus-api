@@ -91,18 +91,14 @@ public static class CarteSlotEndpoints
                 });
             }
 
-            var startsAt = request.StartsAt.ToUniversalTime();
-            if (startsAt <= clock.GetUtcNow())
-            {
-                return Results.BadRequest(new { error = "Cannot publish an interval in the past." });
-            }
-
-            var endsAt = startsAt.AddMinutes(request.DurationMinutes);
-
             // Which event does this fall in? The project runs a month at a time,
-            // so a „carte” thinks "the 14th", not "which event is that". Resolve
-            // it from the date rather than making the client guess.
-            var day = DateOnly.FromDateTime(startsAt.UtcDateTime);
+            // so a „carte” thinks "the 21st", not "which event is that".
+            //
+            // Resolved from the LOCAL day they picked, before any conversion. An
+            // earlier version derived the day from the UTC instant instead, which
+            // silently moved a late-evening slot into the previous day and could
+            // land it on the wrong event — or on none.
+            var day = request.Day;
             var assignments = await db.EventSpecialists
                 .Include(es => es.Event)
                 .Where(es => es.SpecialistId == specialist.Id)
@@ -128,6 +124,36 @@ public static class CarteSlotEndpoints
             }
 
             var assignment = assignments[0];
+
+            // The wall-clock time means the event's zone, so the event has to be
+            // known before it can become an instant — which is why this sits
+            // after the lookup rather than with the other validation.
+            if (!TimeZoneInfo.TryFindSystemTimeZoneById(assignment.Event!.TimeZoneId, out var zone))
+            {
+                return Results.Problem($"Event time zone '{assignment.Event.TimeZoneId}' is unknown here.");
+            }
+
+            DateTimeOffset startsAt;
+            try
+            {
+                startsAt = SlotPlanner.ToUtc(request.Day.ToDateTime(request.StartTime), zone);
+            }
+            catch (ArgumentException)
+            {
+                // The spring-forward hour does not exist. There is no instant to
+                // store, so say which hour rather than inventing one.
+                return Results.BadRequest(new
+                {
+                    error = "That time does not exist on that day — the clocks move forward.",
+                });
+            }
+
+            if (startsAt <= clock.GetUtcNow())
+            {
+                return Results.BadRequest(new { error = "Cannot publish an interval in the past." });
+            }
+
+            var endsAt = startsAt.AddMinutes(request.DurationMinutes);
 
             // Overlap, not just exact duplicates. The unique index on
             // (EventSpecialistId, StartsAt) would catch an identical start, but a
@@ -158,7 +184,7 @@ public static class CarteSlotEndpoints
 
             return Results.Ok(new CarteSlot(
                 slot.Id, slot.StartsAt, slot.EndsAt, false, false,
-                assignment.Event!.Slug, assignment.Event.Name));
+                assignment.Event.Slug, assignment.Event.Name));
         })
             .WithSummary("Publish one interval. You choose its start and its length.");
 

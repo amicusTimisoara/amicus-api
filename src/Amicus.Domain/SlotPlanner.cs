@@ -132,7 +132,17 @@ public static class SlotPlanner
     /// to the FIRST occurrence — the daylight offset — which is what someone
     /// reading a printed timetable would turn up for.
     /// </remarks>
-    private static DateTimeOffset ToUtc(DateTime local, TimeZoneInfo zone)
+    /// <summary>
+    /// Public because a „carte” publishing a single interval needs exactly the
+    /// same wall-clock-to-instant rule as pattern expansion. Two implementations
+    /// of this would drift, and the one that drifted would put a student and a
+    /// „carte” in a room an hour apart.
+    /// </summary>
+    /// <exception cref="ArgumentException">
+    /// The local time does not exist — the spring-forward hour is skipped. The
+    /// caller decides what to tell the person; there is no sensible instant.
+    /// </exception>
+    public static DateTimeOffset ToUtc(DateTime local, TimeZoneInfo zone)
     {
         var unspecified = DateTime.SpecifyKind(local, DateTimeKind.Unspecified);
 

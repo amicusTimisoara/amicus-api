@@ -91,8 +91,15 @@ public sealed record CarteSlot(
 /// Publishing one interval. Duration is per-interval, not a property of the
 /// „carte” — the same person can offer 20 minutes one week and an hour the next,
 /// which is why it is not on their application.
+///
+/// <c>Day</c> and <c>StartTime</c> are WALL-CLOCK in the event's own time zone,
+/// not an instant. A „carte” picks "the 21st at 16:00" and means 16:00 where the
+/// meeting happens; letting the client turn that into UTC made the result depend
+/// on the device's zone, so someone publishing from abroad would have booked a
+/// student at the wrong hour. The server resolves it against the event.
 /// </summary>
-public sealed record PublishSlotRequest(DateTimeOffset StartsAt, int DurationMinutes);
+public sealed record PublishSlotRequest(
+    DateOnly Day, TimeOnly StartTime, int DurationMinutes);
 
 /// <summary>The signed-in user's own profile. `photoUrl` is null for a password
 /// account; `displayName` is null until set (or filled by Google).
