@@ -31,7 +31,7 @@ public sealed record CreateBookingRequest(Guid SlotId, string? Topic);
 public sealed record BookingDetail(
     Guid Id, Guid SlotId, DateTimeOffset StartsAt, DateTimeOffset EndsAt, string Status,
     string? Topic, string CheckInCode, string EventSlug, string EventName,
-    string SpecialistName, string Specialty, string? Location);
+    string SpecialistName, string Specialty, string Category, string? Location);
 
 public sealed record CreateEventRequest(
     string Name, string Slug, DateOnly StartsOn, DateOnly EndsOn, string? TimeZoneId);

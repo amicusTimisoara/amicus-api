@@ -204,6 +204,11 @@ public static class BookingEndpoints
             b.Slot.EventSpecialist.Event.Name,
             b.Slot.EventSpecialist.Specialist!.FullName,
             b.Slot.EventSpecialist.Specialist.Specialty,
+            // The category the „carte” actually carries. Without it the web app
+            // had to guess one from the free-text specialty, and a booking with
+            // Levi Munteanu came back SPIRITUAL on the reservations page while
+            // the calendar and the catalogue both said SOCIAL.
+            b.Slot.EventSpecialist.Specialist.Category.ToString(),
             b.Slot.EventSpecialist.Location));
 
     private static async Task<BookingDetail?> LoadDetailAsync(
