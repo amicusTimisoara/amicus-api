@@ -21,9 +21,12 @@ from datetime import date, timedelta
 
 sys.stdout.reconfigure(encoding="utf-8")
 
-# One per StoryProfile value, so every tag in the catalogue has something behind
-# it. Categories are spread deliberately: a demo where every dot is the same
-# colour shows nothing about how the board reads.
+# One per StoryProfile value EXCEPT Refugiat, which is deliberately left without
+# anyone — a refugee's story is not ours to invent for a demo. The tag exists and
+# a real „carte” can claim it.
+#
+# Categories are spread deliberately: a demo where every dot is the same colour
+# shows nothing about how the board reads.
 # Invented people, with one exception: the pastor is Levis Nistor, who is really
 # in the project — the brief lists him as one of the ten „cărți”. His line is an
 # invitation rather than a claim about his life, because putting words in a real
@@ -35,8 +38,6 @@ CARTI = [
      "Am dat faliment de două ori înainte să meargă ceva. Despre ce înveți când nu merge."),
     ("Dr. Sorin Vasile", "Medic de familie", "Medical", "Medic",
      "Douăzeci de ani de cabinet într-un sat. Despre ce te învață oamenii când îi vezi toată viața."),
-    ("Olena Kovalenko", "Traducătoare", "Social", "Refugiat",
-     "Am ajuns în România cu o valiză și fără limbă. Despre cum îți construiești o casă a doua oară."),
     ("Marian Dobre", "Mentor de reintegrare", "Social", "FostDetinut",
      "Șapte ani după gratii și restul vieții încercând să nu fiu doar atât."),
     ("Vlad Ionescu", "Inginer software", "Spiritual", "FostAteu",
@@ -56,9 +57,9 @@ CARTI = [
 # Spread across the week and the afternoon, so the month grid shows a spread of
 # days rather than one crowded column.
 PATTERN_DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday",
-                "Saturday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
-PATTERN_START = ["16:00:00", "17:00:00", "18:00:00", "16:30:00", "17:30:00",
-                 "11:00:00", "18:30:00", "16:00:00", "19:00:00", "17:00:00", "18:00:00"]
+                "Saturday", "Monday", "Tuesday", "Wednesday", "Thursday"]
+PATTERN_START = ["16:00:00", "17:00:00", "18:00:00", "17:30:00", "11:00:00",
+                 "18:30:00", "16:00:00", "19:00:00", "17:00:00", "18:00:00"]
 
 
 class Api:
@@ -85,24 +86,37 @@ class Api:
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--api", default="http://localhost:5080")
-    p.add_argument("--email", required=True)
+    p.add_argument("--email", help="Admin account with a password. Omit when using --token.")
+    p.add_argument("--token", help="An access token instead of signing in — the way to "
+                                   "run this as a Google account, which has no password.")
     p.add_argument("--password", help="Omit it and you will be prompted, so it "
                                               "stays out of your shell history.")
     p.add_argument("--weeks", type=int, default=6,
                    help="How far ahead the demo event runs (default 6 weeks).")
     args = p.parse_args()
 
-    password = args.password or getpass.getpass(f"Password for {args.email}: ")
-
     api = Api(args.api)
-    status, body = api("/auth/login", {"email": args.email, "password": password})
-    if status != 200:
-        sys.exit(f"Could not sign in as {args.email}: {status} {body}")
-    api.token = body["accessToken"]
+
+    if args.token:
+        # A Google account has no password to sign in with, so the token it
+        # already holds in the browser is the only way in.
+        api.token = args.token
+        who = "the supplied token"
+    elif args.email:
+        password = args.password or getpass.getpass(f"Password for {args.email}: ")
+        status, body = api("/auth/login", {"email": args.email, "password": password})
+        if status != 200:
+            sys.exit(f"Could not sign in as {args.email}: {status} {body}")
+        api.token = body["accessToken"]
+        who = args.email
+    else:
+        sys.exit("Give either --email (password account) or --token (Google account).")
 
     status, events = api("/admin/events")
     if status == 403:
-        sys.exit(f"{args.email} signed in but is not an Admin on {args.api}.")
+        sys.exit(f"Signed in with {who}, but it is not an Admin on {args.api}. "
+                 f"An admin has to add the address to Bootstrap__AdminEmails on the "
+                 f"server and restart it.")
     if status != 200:
         sys.exit(f"Could not read events: {status} {events}")
 
