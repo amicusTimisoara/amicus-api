@@ -1,7 +1,12 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Amicus.Domain.Entities;
+using Amicus.Infrastructure;
 using Amicus.Infrastructure.Identity;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Amicus.Api.Tests;
 
@@ -470,35 +475,89 @@ public sealed class BookingFlowTests(AmicusFixture fixture) : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Only_a_specialist_or_admin_can_check_someone_in()
+    public async Task Check_in_is_the_owning_carte_or_an_admin_not_a_role()
     {
         var admin = await _app.SignedInClientAsync("admin@amicus.test", AppRoles.Admin);
-        await SeedAsync(admin);
+        var (_, eventSpecialistId) = await SeedAsync(admin);
+
+        // The board's „carte”, linked to a real account the way approval links one
+        // (Specialist.UserId). No role is involved — nothing ever grants a Specialist
+        // role, which is exactly why check-in used to be impossible for every „carte”.
+        var carte = await _app.SignedInClientAsync("carte@amicus.test");
+        await LinkToBoardSpecialistAsync(eventSpecialistId, "carte@amicus.test");
+
+        // A second „carte” on their own Specialist row, NOT this booking's slot.
+        var otherCarte = await _app.SignedInClientAsync("other-carte@amicus.test");
+        await MakeStandaloneCarteAsync("other-carte@amicus.test");
 
         var student = await _app.SignedInClientAsync("student@amicus.test");
-        var slot = (await BoardAsync(student))[0].Id;
-        var booking = (await (await student.PostAsJsonAsync("/bookings", new { slotId = slot }))
+        var slots = await BoardAsync(student);
+        var booking = (await (await student.PostAsJsonAsync("/bookings", new { slotId = slots[0].Id }))
             .Content.ReadFromJsonAsync<BookingDto>())!;
 
-        // A student must not be able to mark themselves present without turning up.
-        Assert.Equal(
-            HttpStatusCode.Forbidden,
-            (await student.PostAsJsonAsync("/check-in", new { code = booking.CheckInCode }))
-                .StatusCode);
+        // A student cannot mark themselves present without turning up.
+        Assert.Equal(HttpStatusCode.Forbidden,
+            (await student.PostAsJsonAsync("/check-in", new { code = booking.CheckInCode })).StatusCode);
 
-        var desk = await _app.SignedInClientAsync("desk@amicus.test", AppRoles.Specialist);
+        // A „carte” who does not own this booking's slot cannot either — the fix
+        // scopes by the Specialist entity, not a blanket role.
+        Assert.Equal(HttpStatusCode.Forbidden,
+            (await otherCarte.PostAsJsonAsync("/check-in", new { code = booking.CheckInCode })).StatusCode);
 
-        var scanned = await desk.PostAsJsonAsync("/check-in", new { code = booking.CheckInCode });
+        // The OWNING „carte” can — this is the fix. Before it, check-in required a
+        // Specialist role that nothing ever granted, so no „carte” could check anyone in.
+        var scanned = await carte.PostAsJsonAsync("/check-in", new { code = booking.CheckInCode });
         scanned.EnsureSuccessStatusCode();
         Assert.Equal("CheckedIn", (await scanned.Content.ReadFromJsonAsync<CheckInDto>())!.Status);
 
-        // Scanning the same QR twice at a busy desk is an accident, not an error.
-        var rescanned = await desk.PostAsJsonAsync("/check-in", new { code = booking.CheckInCode });
-        Assert.Equal(HttpStatusCode.OK, rescanned.StatusCode);
+        // Idempotent: scanning the same QR twice at a busy desk is not an error.
+        Assert.Equal(HttpStatusCode.OK,
+            (await carte.PostAsJsonAsync("/check-in", new { code = booking.CheckInCode })).StatusCode);
 
-        Assert.Equal(
-            HttpStatusCode.NotFound,
-            (await desk.PostAsJsonAsync("/check-in", new { code = "ZZZZZZZZZZ" })).StatusCode);
+        // An admin checks in anyone.
+        var second = (await (await student.PostAsJsonAsync("/bookings", new { slotId = slots[1].Id }))
+            .Content.ReadFromJsonAsync<BookingDto>())!;
+        (await admin.PostAsJsonAsync("/check-in", new { code = second.CheckInCode }))
+            .EnsureSuccessStatusCode();
+
+        // Unknown code is 404 regardless of who asks.
+        Assert.Equal(HttpStatusCode.NotFound,
+            (await admin.PostAsJsonAsync("/check-in", new { code = "ZZZZZZZZZZ" })).StatusCode);
+    }
+
+    /// <summary>Link the board's specialist to a user, the way approving an application does.</summary>
+    private async Task LinkToBoardSpecialistAsync(Guid eventSpecialistId, string email)
+    {
+        using var scope = _app.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AmicusDbContext>();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+        var user = await users.FindByEmailAsync(email)
+            ?? throw new InvalidOperationException($"{email} not found.");
+        var es = await db.EventSpecialists.FindAsync(eventSpecialistId)
+            ?? throw new InvalidOperationException("event-specialist not found.");
+        var specialist = await db.Specialists.FindAsync(es.SpecialistId)
+            ?? throw new InvalidOperationException("specialist not found.");
+        specialist.UserId = user.Id;
+        await db.SaveChangesAsync();
+    }
+
+    /// <summary>A „carte” with its own Specialist row but no slot on this board.</summary>
+    private async Task MakeStandaloneCarteAsync(string email)
+    {
+        using var scope = _app.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AmicusDbContext>();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+        var user = await users.FindByEmailAsync(email)
+            ?? throw new InvalidOperationException($"{email} not found.");
+        db.Specialists.Add(new Specialist
+        {
+            Id = Guid.NewGuid(),
+            UserId = user.Id,
+            FullName = "Alt Carte",
+            Specialty = "Something else",
+            CreatedAt = DateTimeOffset.UtcNow,
+        });
+        await db.SaveChangesAsync();
     }
 
     [Fact]

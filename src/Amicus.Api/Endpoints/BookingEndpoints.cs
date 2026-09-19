@@ -136,6 +136,7 @@ public static class BookingEndpoints
         app.MapPost("/check-in", async (
             [FromBody] CheckInRequest request,
             AmicusDbContext db,
+            ClaimsPrincipal user,
             TimeProvider clock,
             CancellationToken ct) =>
         {
@@ -154,6 +155,17 @@ public static class BookingEndpoints
             if (booking is null)
             {
                 return Results.NotFound(new { error = "Unknown check-in code." });
+            }
+
+            // Admins check in anyone; a „carte” checks in only bookings on their own
+            // slots. Deliberately an entity check (Specialist.UserId), not a role: a
+            // just-approved „carte” gets a Specialist row but no new token, and a
+            // stateless bearer token would not carry a Specialist role claim until the
+            // next sign-in. There is no such role anyway — nothing ever grants it.
+            if (!user.IsInRole(AppRoles.Admin)
+                && booking.Slot?.EventSpecialist?.Specialist?.UserId != user.Id())
+            {
+                return Results.Forbid();
             }
 
             if (booking.Status == BookingStatus.CheckedIn)
@@ -182,8 +194,7 @@ public static class BookingEndpoints
                 b.Slot.EventSpecialist!.Specialist!.FullName,
                 b.Status.ToString());
         })
-            .RequireAuthorization(policy =>
-                policy.RequireRole(AppRoles.Specialist, AppRoles.Admin))
+            .RequireAuthorization()
             .WithName("CheckIn")
             .WithSummary("Mark a booking as attended, from its QR code.");
 
