@@ -18,6 +18,7 @@ import sys
 import urllib.error
 import urllib.request
 from datetime import date, timedelta
+from urllib.parse import urlparse
 
 sys.stdout.reconfigure(encoding="utf-8")
 
@@ -95,6 +96,16 @@ class Api:
             return e.code, e.read().decode("utf-8")[:300]
 
 
+# The production backend. Seeding it means injecting invented demo people into
+# real data, so it is refused unless the operator explicitly opts in. Add hosts
+# here if prod ever moves.
+PROD_HOSTS = {"api.thorsp.net"}
+
+
+def _is_prod(api_url: str) -> bool:
+    return (urlparse(api_url).hostname or "").lower() in PROD_HOSTS
+
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--api", default="http://localhost:5080")
@@ -105,9 +116,22 @@ def main():
                                               "stays out of your shell history.")
     p.add_argument("--weeks", type=int, default=6,
                    help="How far ahead the demo event runs (default 6 weeks).")
+    p.add_argument("--yes-this-is-production", action="store_true",
+                   help="Required to seed the PRODUCTION backend (api.thorsp.net). "
+                        "This injects invented demo people; prod holds real „cărți” "
+                        "who applied through /devino-carte. Only for a deliberate, "
+                        "temporary showcase on prod.")
     args = p.parse_args()
 
     api = Api(args.api)
+
+    if _is_prod(args.api) and not args.yes_this_is_production:
+        sys.exit(
+            f"Refusing to seed PRODUCTION ({args.api}). This is demo data — invented "
+            f"people — and prod holds real „cărți” who applied through /devino-carte. "
+            f"Showcase on staging (https://stage.thorsp.net) instead. To seed prod on "
+            f"purpose anyway, re-run with --yes-this-is-production."
+        )
 
     if args.token:
         # A Google account has no password to sign in with, so the token it
