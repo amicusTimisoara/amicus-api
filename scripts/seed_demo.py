@@ -52,14 +52,26 @@ CARTI = [
      "Întrebările pe care nu le pui într-o biserică plină. Aici le poți pune."),
     ("Ioana Bălan", "Studentă la Medicină", "Mentorat", "FostOlimpic",
      "Am luat aur la olimpiadă și apoi m-am blocat complet. Despre ce vine după performanță."),
+
+    # Juridic had nobody, so the filter showed a category with an empty result.
+    ("Ana Popa", "Avocat", "Juridic", None,
+     "Zece ani în instanță. Despre ce faci când ai dreptate și tot pierzi."),
+    # Deliberate second on two tags, so the catalogue shows what more than one
+    # „carte” under the same label looks like.
+    ("Mihai Stan", "Medic de urgență", "Medical", "Medic",
+     "Lucrez pe urgențe. Despre cum iei decizii când nu ai timp să te gândești."),
+    ("Radu Toma", "Patron de cafenea", "Cariera", "Antreprenor",
+     "Am deschis o cafenea la 24 de ani, fără niciun plan. Despre ce am învățat pe drum."),
 ]
 
 # Spread across the week and the afternoon, so the month grid shows a spread of
 # days rather than one crowded column.
 PATTERN_DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday",
-                "Saturday", "Monday", "Tuesday", "Wednesday", "Thursday"]
+                "Saturday", "Monday", "Tuesday", "Wednesday", "Thursday",
+                "Friday", "Monday", "Wednesday"]
 PATTERN_START = ["16:00:00", "17:00:00", "18:00:00", "17:30:00", "11:00:00",
-                 "18:30:00", "16:00:00", "19:00:00", "17:00:00", "18:00:00"]
+                 "18:30:00", "16:00:00", "19:00:00", "17:00:00", "18:00:00",
+                 "16:30:00", "18:30:00", "11:30:00"]
 
 
 class Api:
@@ -153,10 +165,11 @@ def main():
             skipped += 1
             continue
 
-        status, specialist_id = api("/admin/specialists", {
-            "fullName": name, "specialty": specialty, "bio": bio,
-            "category": category, "profile": profile,
-        })
+        payload = {"fullName": name, "specialty": specialty, "bio": bio,
+                   "category": category}
+        if profile:
+            payload["profile"] = profile
+        status, specialist_id = api("/admin/specialists", payload)
         if status not in (200, 201):
             print(f"  ! {name}: {status} {specialist_id}")
             continue
@@ -178,7 +191,7 @@ def main():
         })
 
         created += 1
-        print(f"  + {name:22} {category:10} {profile}")
+        print(f"  + {name:22} {category:10} {profile or '(fără profil)'}")
 
     status, result = api(f"/admin/events/{event['id']}/generate-slots", {})
     print(f"\nslots          {result}" if status == 200 else f"\nslots failed   {status} {result}")
