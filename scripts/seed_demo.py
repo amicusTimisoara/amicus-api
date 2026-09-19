@@ -174,8 +174,10 @@ def main():
             print(f"  ! {name}: {status} {specialist_id}")
             continue
 
+        # No location: the venues are not settled, and a demo that names one
+        # states something the project has not agreed to yet.
         status, assignment_id = api(f"/admin/events/{event['id']}/specialists", {
-            "specialistId": specialist_id, "location": "Sediul BETA",
+            "specialistId": specialist_id,
         })
         if status not in (200, 201):
             print(f"  ! {name} not rostered: {status} {assignment_id}")
