@@ -32,9 +32,11 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from seed_demo import CARTI  # noqa: E402  — the single source of truth for the names
 
+# Owned by the service user `amicus` (mode 0640, group amicus): run this as a user in
+# that group, or with sudo.
 ENV_FILES = {
-    "stage": "~/.config/amicus/api-stage.env",
-    "prod": "~/.config/amicus/api.env",
+    "stage": "/srv/amicus/.config/amicus/api-stage.env",
+    "prod": "/srv/amicus/.config/amicus/api.env",
 }
 CONTAINER = "amicus-postgres"  # Pi-local Postgres; both amicus_stage and amicus_prod live here.
 

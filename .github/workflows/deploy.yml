@@ -26,7 +26,9 @@ concurrency:
 
 jobs:
   deploy:
-    # Self-hosted runner on the Pi. Guarded to this repo so a fork can't target it.
+    # Self-hosted runner on the Pi, running as the unprivileged user `amicus`. The repo
+    # guard below only stops a fork running THIS file; what limits a hostile workflow is
+    # that user, plus fork PRs needing approval (README "Running on the Raspberry Pi").
     runs-on: [self-hosted, pi]
     if: github.repository == 'amicusTimisoara/amicus-api'
     steps:
