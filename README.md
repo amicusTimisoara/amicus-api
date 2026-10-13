@@ -3,7 +3,7 @@
 Backend API for AMiCUS Timișoara, shared by the mobile and web clients.
 
 - **Stack:** .NET 10 (ASP.NET Core) · PostgreSQL 18 · EF Core 10 (Npgsql)
-- **Clients:** [`amicus-web`](https://github.com/amicusTimisoara/amicus-web) (React, live at `app.thorsp.net`) and `amicus-mobile` (React Native — not created yet)
+- **Clients:** [`amicus-web`](https://github.com/amicusTimisoara/amicus-web) (React, live at `app.thorsp.net`) and [`amicus-mobile`](https://github.com/amicusTimisoara/amicus-mobile) (Expo / React Native)
 - **Live:** `api.thorsp.net` (prod) · `stage.thorsp.net` (stage)
 
 ## The domain, in one paragraph
@@ -231,8 +231,9 @@ role. (The legacy `thorsp.net/amicus/` path still works for backward compat.)
 |---|---|---|
 | Public URL | `https://api.thorsp.net` | `https://stage.thorsp.net` |
 | Service | `amicus-api.service` :5090 | `amicus-api-stage.service` :5091 |
-| Published app | `~/apps/amicus-api/` | `~/apps/amicus-api-stage/` |
-| Settings + secrets | `~/.config/amicus/api.env` | `~/.config/amicus/api-stage.env` |
+| Published app | `/srv/amicus/apps/amicus-api/` | `/srv/amicus/apps/amicus-api-stage/` |
+| Settings + secrets | `/srv/amicus/.config/amicus/api.env` | `/srv/amicus/.config/amicus/api-stage.env` |
+| Runs as | user `amicus` (home `/srv/amicus`) | same |
 | Database | `amicus_prod` / `amicus_app` | `amicus_stage` / `amicus_stage` |
 | nginx | `sites-available/amicus-subdomains` (server blocks per host) | |
 
@@ -253,7 +254,12 @@ Things that will bite whoever touches this next:
   applies as `PathBase`; `Results.Created` with a literal path ignores PathBase, so
   those go through `CreatedAt.Path`. The app does **not** strip a prefix left on the
   path — `WebApplication` inserts `UseRouting` before user middleware.
-- **Data Protection keys persist to `~/.config/amicus/dp-keys`.** Without a
+- **Everything AMiCUS runs as the unprivileged user `amicus`, never the Pi's own user** —
+  the two services and the deploy runner. That user can read only `/srv/amicus`, and its
+  sudo is limited to restarting/inspecting the two services (`/etc/sudoers.d/amicus-deploy`).
+  The runner executes whatever a workflow says, so this is what limits a bad workflow to
+  AMiCUS itself (D1). Don't move either back to a personal account.
+- **Data Protection keys persist to `/srv/amicus/.config/amicus/dp-keys`.** Without a
   configured path they live in memory and every restart invalidates every issued
   token, signing out every student for no visible reason. Verified: a token issued
   before a restart still works after it.
@@ -305,8 +311,12 @@ So: merge a PR → it lands on **stage** automatically; when stage looks good, c
 **Release** → it goes to **prod**. `workflow_dispatch` deploys either on demand.
 
 `deploy.sh <stage|prod>` publishes, applies migrations to that env's database, restarts
-the service, and health-checks it. Secrets live in `~/.config/amicus/api.env` /
-`api-stage.env` (not in git). CI (`ci.yml`, build + test) still runs on GitHub-hosted
+the service, and health-checks it. It uses `$HOME`-relative paths, which resolve under
+the runner's user (`amicus`, `/srv/amicus`). Secrets live in
+`/srv/amicus/.config/amicus/api.env` / `api-stage.env` (not in git). The runner is
+`/srv/amicus/actions-runner` (service `actions.runner.amicusTimisoara.pi-amicus`, hardened
+by a drop-in: no `/home`, private `/tmp`). To deploy by hand, dispatch the workflow; re-run
+a release's run to redeploy that release to prod. CI (`ci.yml`, build + test) still runs on GitHub-hosted
 runners for every PR; only the deploy job uses the Pi.
 
 ## Tests

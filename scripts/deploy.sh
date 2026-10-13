@@ -4,7 +4,9 @@
 #   scripts/deploy.sh stage    # -> amicus-api-stage.service on :5091, amicus_stage DB
 #   scripts/deploy.sh prod     # -> amicus-api.service       on :5090, amicus_prod  DB
 #
-# Run by the GitHub Actions self-hosted runner (user thorsp) and usable by hand.
+# Run by the GitHub Actions self-hosted runner as the unprivileged user `amicus`
+# ($HOME = /srv/amicus), so every path below resolves there. Never run it as another
+# user: the app dirs and env files belong to amicus (README "Running on the Raspberry Pi").
 # The env files hold the connection string + secrets and are NOT in git.
 set -euo pipefail
 
