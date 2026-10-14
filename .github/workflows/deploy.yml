@@ -34,16 +34,26 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      # Event values reach scripts only through env, never as ${{ }} inside them,
+      # and the environment name is checked against the two real ones.
       - name: Resolve environment
         id: env
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_ENVIRONMENT: ${{ inputs.environment }}
         run: |
-          if [ "${{ github.event_name }}" = "release" ]; then
+          if [ "$EVENT_NAME" = "release" ]; then
             echo "name=prod" >> "$GITHUB_OUTPUT"
-          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "name=${{ inputs.environment }}" >> "$GITHUB_OUTPUT"
+          elif [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            case "$INPUT_ENVIRONMENT" in
+              stage|prod) echo "name=$INPUT_ENVIRONMENT" >> "$GITHUB_OUTPUT" ;;
+              *) echo "unknown environment: $INPUT_ENVIRONMENT"; exit 2 ;;
+            esac
           else
             echo "name=stage" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Deploy
-        run: bash scripts/deploy.sh "${{ steps.env.outputs.name }}"
+        env:
+          DEPLOY_ENV: ${{ steps.env.outputs.name }}
+        run: bash scripts/deploy.sh "$DEPLOY_ENV"
